@@ -978,7 +978,88 @@ ORDER BY RMFScore DESC;
 > * **`Frequency`: More frequent customers should have a higher score.**
 > * **`Monetary`: Higher monetary values (larger spenders) should have a higher score.**
 
+### Customer Segmentation Based on RMF Score
+```mysql
+WITH RFM AS (
+    SELECT
+        customer_id,
+        MIN(DATEDIFF(CURRENT_DATE, ship_date)) AS Recency,
+        COUNT(order_id) AS Frequency,
+        ROUND(SUM(Sales), 2) AS Monetary
+    FROM sales_data
+    GROUP BY customer_id
+),
+     RFM_Scored AS (
+         SELECT
+             customer_id,
+             Recency,
+             Frequency,
+             Monetary,
+             CASE
+                 WHEN Recency <= 30 THEN 5
+                 WHEN Recency <= 60 THEN 4
+                 WHEN Recency <= 90 THEN 3
+                 WHEN Recency <= 180 THEN 2
+                 ELSE 1
+                 END AS RecencyScore,
+             CASE
+                 WHEN Frequency >= 10 THEN 5
+                 WHEN Frequency >= 7 THEN 4
+                 WHEN Frequency >= 5 THEN 3
+                 WHEN Frequency >= 3 THEN 2
+                 ELSE 1
+                 END AS FrequencyScore,
+             CASE
+                 WHEN Monetary >= 1000 THEN 5
+                 WHEN Monetary >= 500 THEN 4
+                 WHEN Monetary >= 200 THEN 3
+                 WHEN Monetary >= 100 THEN 2
+                 ELSE 1
+                 END AS MonetaryScore
+         FROM RFM
+     )
 
+SELECT
+    customer_id,
+    Recency,
+    Frequency,
+    Monetary,
+    RecencyScore,
+    FrequencyScore,
+    MonetaryScore,
+    (RecencyScore + FrequencyScore + MonetaryScore) AS RMF_Score,
+    CASE
+        WHEN (RecencyScore + FrequencyScore + MonetaryScore) >= 13 THEN 'Best'
+        WHEN (RecencyScore + FrequencyScore + MonetaryScore) BETWEEN 9 AND 12 THEN 'Loyal'
+        WHEN (RecencyScore + FrequencyScore + MonetaryScore) < 9 THEN 'At-Risk'
+        ELSE 'Other'
+        END AS Segment
+FROM RFM_Scored
+ORDER BY RMF_Score DESC;
+```
+**Output:**
+```text
++-----------+-------+---------+--------+------------+--------------+-------------+---------+-------+
+|customer_id|Recency|Frequency|Monetary|RecencyScore|FrequencyScore|MonetaryScore|RMF_Score|Segment|
++-----------+-------+---------+--------+------------+--------------+-------------+---------+-------+
+|1340       |4092   |11       |11516.76|1           |5             |5            |11       |Loyal  |
+|1778       |4118   |11       |8658.37 |1           |5             |5            |11       |Loyal  |
+|1745       |4080   |16       |38105.95|1           |5             |5            |11       |Loyal  |
+|272        |4088   |19       |34482.36|1           |5             |5            |11       |Loyal  |
+|1796       |4081   |15       |19331.3 |1           |5             |5            |11       |Loyal  |
+|2645       |4242   |10       |20268.54|1           |5             |5            |11       |Loyal  |
+|2007       |4104   |12       |8049.95 |1           |5             |5            |11       |Loyal  |
+|2382       |4206   |10       |26406.82|1           |5             |5            |11       |Loyal  |
+|1682       |4088   |10       |14221.68|1           |5             |5            |11       |Loyal  |
+|1821       |4230   |17       |18390.46|1           |5             |5            |11       |Loyal  |
++-----------+-------+---------+--------+------------+--------------+-------------+---------+-------+
+```
+
+> **Now that we have the RMF_Score, we can classify customers into different segments.**
+> * **`Best customers`: High recency, high frequency, high monetary value.**
+> * **`Loyal customers`: High frequency but medium/low recency or monetary.**
+> * **`At-risk customers`: Low recency and frequency.**
+> * **`Other`: Customers who don't fit into any category.**
 
 
 

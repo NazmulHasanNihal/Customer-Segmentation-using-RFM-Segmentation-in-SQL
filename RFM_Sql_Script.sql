@@ -441,15 +441,60 @@ FROM RFM_Scored
 ORDER BY RMFScore DESC;
 
 
+-- Customer Segmentation Based on RMF Score
+WITH RFM AS (
+    SELECT
+        customer_id,
+        MIN(DATEDIFF(CURRENT_DATE, ship_date)) AS Recency,
+        COUNT(order_id) AS Frequency,
+        ROUND(SUM(Sales), 2) AS Monetary
+    FROM sales_data
+    GROUP BY customer_id
+),
+     RFM_Scored AS (
+         SELECT
+             customer_id,
+             Recency,
+             Frequency,
+             Monetary,
+             CASE
+                 WHEN Recency <= 30 THEN 5
+                 WHEN Recency <= 60 THEN 4
+                 WHEN Recency <= 90 THEN 3
+                 WHEN Recency <= 180 THEN 2
+                 ELSE 1
+                 END AS RecencyScore,
+             CASE
+                 WHEN Frequency >= 10 THEN 5
+                 WHEN Frequency >= 7 THEN 4
+                 WHEN Frequency >= 5 THEN 3
+                 WHEN Frequency >= 3 THEN 2
+                 ELSE 1
+                 END AS FrequencyScore,
+             CASE
+                 WHEN Monetary >= 1000 THEN 5
+                 WHEN Monetary >= 500 THEN 4
+                 WHEN Monetary >= 200 THEN 3
+                 WHEN Monetary >= 100 THEN 2
+                 ELSE 1
+                 END AS MonetaryScore
+         FROM RFM
+     )
 
-
-
-
-
-
-
-
-
-
-
-
+SELECT
+    customer_id,
+    Recency,
+    Frequency,
+    Monetary,
+    RecencyScore,
+    FrequencyScore,
+    MonetaryScore,
+    (RecencyScore + FrequencyScore + MonetaryScore) AS RMF_Score,
+    CASE
+        WHEN (RecencyScore + FrequencyScore + MonetaryScore) >= 13 THEN 'Best'
+        WHEN (RecencyScore + FrequencyScore + MonetaryScore) BETWEEN 9 AND 12 THEN 'Loyal'
+        WHEN (RecencyScore + FrequencyScore + MonetaryScore) < 9 THEN 'At-Risk'
+        ELSE 'Other'
+        END AS Segment
+FROM RFM_Scored
+ORDER BY RMF_Score DESC;
